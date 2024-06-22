@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Search</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-center text-gray-900 mb-8">Local Image Search</h1>
+        <p class="text-lg text-center text-gray-600 mb-4">Search through your local Photos app library with natural
+            language</p>
+
+        <div class="flex items-center mb-8 space-x-2">
+            <input type="text" id="search-query" placeholder="Enter search query"
+                class="flex-grow px-4 py-2 border border-gray-200 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                disabled>
+            <button onclick="search()"
+                class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                disabled>
+                Search
+            </button>
+            <button onclick="indexPhotos(); showIndexedPhotos();"
+                class="ml-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                Index Photos
+            </button>
+        </div>
+        <div id="photoCount" class="text-center text-gray-600 mb-4"></div>
+        <script>
+
+        </script>
+
+        <div id="results" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+        <div class="">
+            <canvas id="distanceChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        function showIndexedPhotos() {
+            $.getJSON('/collection', function (data) {
+                if (data.count > 0) {
+                    document.getElementById('search-query').disabled = false;
+                    document.querySelector('button[onclick="search()"]').disabled = false;
+                }
+                document.getElementById('photoCount').innerText = 'Number of indexed photos: ' + (data.count ? data.count : '0');
+            }).fail(function () {
+                alert('An error occurred while retrieving the number of indexed photos. Please try again.');
+            });
+        }
+        window.onload = showIndexedPhotos;
+
+        let chart;
+
+        function search() {
+            var query = document.getElementById('search-query').value;
+            $('#results').html('<p class="text-center text-gray-600">Searching...</p>');
+            $.getJSON('/search?q=' + encodeURIComponent(query), function (data) {
+                var resultsHtml = '';
+                data.results.forEach(function (result, index) {
+                    resultsHtml += `
+                        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                            <img src="/image?path=${encodeURIComponent(result.photo_id)}" alt="Search Result" class="w-full h-48 object-cover">
+                            <div class="p-4">
+                                <p class="text-sm text-gray-600 truncate">${result.photo_id}</p>
+                                <p class="text-sm font-semibold text-gray-900">Distance: ${result.distance.toFixed(4)}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+                $('#results').html(resultsHtml);
+                updateChart(data.results);
+            }).fail(function () {
+                $('#results').html('<p class="text-center text-red-600">An error occurred while searching. Please try again.</p>');
+            });
+        }
+
+        function indexPhotos() {
+            $.post('/index-photos', function (data) {
+                alert(data.message);
+            }).fail(function () {
+                alert('An error occurred while indexing photos. Please try again.');
+            });
+        }
+
+        function updateChart(results) {
+            const ctx = document.getElementById('distanceChart').getContext('2d');
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: results.map((_, index) => `Result ${index + 1}`),
+                    datasets: [{
+                        label: 'Distance',
+                        data: results.map(result => result.distance),
+                        backgroundColor: 'rgba(99, 102, 241, 0.5)',
+                        borderColor: 'rgb(99, 102, 241)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Distance'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Search Results'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Distances of Search Results'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
